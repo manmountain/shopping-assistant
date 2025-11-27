@@ -1,0 +1,64 @@
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.root-panel {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+.list-panel {
+    flex: 3;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex; 
+    flex-direction: column; 
+}
+
+.chat-panel {
+    flex: 1;
+    border-right: 1px solid #ccc;
+    padding: 10px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-container {
+  width: 100%;
+  display: flex;
+}
+
+.hidden {
+  display: none;
+}
+
+.primary-msg {
+    margin-left: 40px;
+}
+
+.secondary-msg {
+    margin-right: 40px;
+}
+
+.warning-msg {
+    margin-right: 10px;
+    margin-left: 10px;
+}
+
+.danger-msg {
+    margin-right: 10px;
+    margin-left: 10px;
+}
+
+.info-msg {
+    margin-right: 10px;
+    margin-left: 10px;
+}
