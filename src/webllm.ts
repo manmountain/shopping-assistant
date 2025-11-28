@@ -135,8 +135,29 @@ class ChatUI {
       this.appendMessage("info", "Create vector store from product data. Standby...");
       // Process according to Snowflake model
       const knowledge: Document[] = values.map((item) => {
-        return {pageContent: `[CLS] ${item.title} ${item.description}. price ${item.price}. rating ${item.rating}. discount ${item.discountPercentage} percent. [SEP]`, metadata: { id: item.id } };
+        // Create a natural text representation of the product
+        const content = `
+Product Title: ${item.title}
+Description: ${item.description}
+Category: ${item.category}
+Brand: ${item.brand}
+Tags: ${item.tags.join(", ")}
+Price: ${item.price} USD
+Rating: ${item.rating} stars
+Stock status: ${item.availabilityStatus}
+        `.trim();
+
+        return {
+          pageContent: content,
+          // Save metadata for advanced filtering of results
+          metadata: { 
+            id: item.id,
+            price: item.price,
+            category: item.category
+          } 
+        };
       });
+
       const metadata = knowledge.map((_, index) => ({ id: index }));
       // Create document store
       const vectorStore = await MemoryVectorStore.fromDocuments(
@@ -145,13 +166,37 @@ class ChatUI {
       );
       this.updateLastMessage("info", " Vector store created. "+values.length+" JSON-documents added to the store.", false);
       //
-      const retriever = vectorStore.asRetriever();
+      const retriever = vectorStore.asRetriever({
+        k: 30 // number of documents to retrieve
+      });
+      // DBG: Test retrivier
+      //const retrievedDocs = await retriever.getRelevantDocuments("sporting equipment under 100 dollars");
+      //console.log("Hittade dokument:", retrievedDocs);
+      //const retrievedDocs = await retriever.getRelevantDocuments("birtday present for girls over 100 dollars");
+      //console.log("Hittade dokument:", retrievedDocs);
+      //const retrievedDocs = await retriever.getRelevantDocuments("food products but no fruits");
+      //console.log("Hittade dokument:", retrievedDocs);
+
       // Create prompt
       const prompt =
-      PromptTemplate.fromTemplate(`Answer the question based only on the following context:
-      {context}
-      
-      Question: {question}`);
+      PromptTemplate.fromTemplate(`
+You are a product search engine. Your ONLY job is to list products from the context that match the user's request.
+
+Rules:
+1. List the product Title, Price, and a short reason why it fits.
+2. Do NOT act like a chatty assistant. Do NOT ask follow-up questions.
+3. If the user makes a spelling mistake (like "athleats"), assume they mean "athletes" or "sports".
+4. Use synonyms for products (like "sneakers" for "shoes") when searching.
+5. Only use the products in the context to answer. Do NOT make up products.
+6. If you find relevant products, just list them immediately.
+7. If the context is empty or no products match, answer ONLY: "No relevant products found."
+
+Context:
+{context}
+
+Question: {question}
+Answer:
+      `);
       // Create chain
       const chain = RunnableSequence.from([
         {
@@ -381,11 +426,12 @@ class ChatUI {
         }
       }
       if (usage) {
-        this.uiChatInfoLabel.innerHTML =
+        this.uiChatInfoLabel.innerHTML = this.createChatLabelHtml(usage);
+        /*this.uiChatInfoLabel.innerHTML =
           `prompt: ${usage.prompt_tokens}, ` +
           `completion: ${usage.completion_tokens}, ` + "<br/>" +
           `prefill: ${usage.extra.prefill_tokens_per_s.toFixed(1)} tks/s, ` +
-          `decoding: ${usage.extra.decode_tokens_per_s.toFixed(1)} tks/s`;
+          `decoding: ${usage.extra.decode_tokens_per_s.toFixed(1)} tks/s`; */
       }
       const finalMessage = await this.engine.getMessage(this.llmModel);
       this.updateLastMessage("secondary", finalMessage); // TODO: Remove this after � issue is fixed
@@ -397,6 +443,42 @@ class ChatUI {
     }
     this.uiChatInput.setAttribute("placeholder", "Type a message...");
     this.requestInProgress = false;
+  }
+
+  private createChatLabelHtml(usage: { prompt_tokens: any; completion_tokens: any; extra: { prefill_tokens_per_s: number; decode_tokens_per_s: number; }; }): string {
+    return `
+<table class="table table-borderless table-info-subtle m-0 small">
+  <tbody class="small">
+    <tr>
+      <td class="text-center">prompt</td>
+      <td class="text-center">completion</td>
+      <td class="text-center">prefill</td>
+      <td class="text-center">decoding</td>
+    </tr>
+    <tr>
+      <td class="text-center">${usage.prompt_tokens}</td>
+      <td class="text-center">${usage.completion_tokens}</td>
+      <td class="text-center">${usage.extra.prefill_tokens_per_s.toFixed(1)}</td>
+      <td class="text-center">${usage.extra.decode_tokens_per_s.toFixed(1)}</td>
+    </tr>
+    <tr>
+      <td class="text-center">tkns</td>
+      <td class="text-center">tkns</td>
+      <td class="text-center">tkns/s</td>
+      <td class="text-center">tkns/s</td>
+    </tr>
+  </tbody>
+</table>
+    `;
+    return `
+      <div>
+        <span>Prompt Tokens: ${usage.prompt_tokens}</span>,
+        <span>Completion Tokens: ${usage.completion_tokens}</span>,
+        <br/>
+        <span>Prefill Speed: ${usage.extra.prefill_tokens_per_s.toFixed(1)} tks/s</span>,
+        <span>Decoding Speed: ${usage.extra.decode_tokens_per_s.toFixed(1)} tks/s</span>
+      </div>
+    `;
   }
 }
 
